@@ -1,5 +1,5 @@
 <template>
-  <div class="character-detail" v-loading="loading">
+  <div class="character-detail" v-loading="loading" ref="detailContainer">
     <div class="detail-container">
       <!-- 返回按钮 -->
       <div class="back-button">
@@ -159,7 +159,7 @@
                           <!-- 悬停覆盖层 -->
                           <div class="cover-hover-overlay">
                             <div class="overlay-content">
-                              <div class="overlay-title">{{ truncateText(item.title, 20) }}</div>
+                              <div class="overlay-title">{{ truncateText(item.title, 25) }}</div>
                               <div class="overlay-meta">
                                 <span class="overlay-character">{{ item.character }}</span>
                                 <span class="overlay-count">{{ item.count }}P</span>
@@ -189,6 +189,7 @@
                           <div class="related-title">{{ truncateText(item.title, 20) }}</div>
                           <div class="related-meta">
                             <span>{{ formatFileSize(item.size) }}</span>
+                            <span>{{ formatRelativeDate(item.updated_at) }}</span>
                           </div>
                         </div>
                       </div>
@@ -201,67 +202,79 @@
                 </div>
               </el-tab-pane>
 
-              <!-- Cosergirl图集 -->
+              <!-- Cosergirl图集 - 修改为网格视图 -->
               <el-tab-pane label="Cosergirl图集" name="cosergirl">
-                <div v-if="cosergirlItems.length > 0" class="related-grid">
+                <div v-if="cosergirlItems.length > 0" class="cosergirl-grid-view">
                   <div
                     v-for="item in cosergirlItems"
                     :key="item._id"
-                    class="related-item"
+                    class="grid-item"
                     @click="viewCosergirl(item._id)"
                   >
-                    <el-card shadow="hover" :class="{ 'dark-card': isDarkTheme }">
-                      <div class="related-content">
-                        <!-- 封面容器 -->
-                        <div class="related-cover">
-                          <el-image
-                            :src="getCosergirlCover(item)"
-                            :fit="getImageFit(item, 'cosergirl')"
-                            class="cover-image"
-                            loading="lazy"
-                            @load="handleImageLoad(item, 'cosergirl', $event)"
-                          >
-                            <template #placeholder>
-                              <div class="cover-placeholder">
-                                <el-icon><Picture /></el-icon>
-                              </div>
-                            </template>
-                            <template #error>
-                              <div class="cover-placeholder">
-                                <el-icon><Picture /></el-icon>
-                              </div>
-                            </template>
-                          </el-image>
-
-                          <!-- 悬停覆盖层 -->
-                          <div class="cover-hover-overlay">
-                            <div class="overlay-content">
-                              <div class="overlay-title">{{ truncateText(item.title, 20) }}</div>
-                              <div class="overlay-meta">
-                                <span class="overlay-character">{{ item.character }}</span>
-                                <span class="overlay-count">{{ item.count }}P</span>
-                              </div>
+                    <el-card class="item-card" shadow="hover" :class="{ 'dark-card': isDarkTheme }">
+                      <!-- 封面容器 -->
+                      <div
+                        class="cover-container"
+                        @mouseenter="hoverItemId = item._id"
+                        @mouseleave="hoverItemId = null"
+                      >
+                        <el-image
+                          :src="getCosergirlCover(item)"
+                          :fit="getImageFit(item, 'cosergirl')"
+                          class="cover-image"
+                          loading="lazy"
+                          :preview-src-list="getCosergirlPreviewList(item)"
+                          :initial-index="0"
+                          @load="handleImageLoad(item, 'cosergirl', $event)"
+                        >
+                          <template #placeholder>
+                            <div class="image-placeholder">
+                              <el-icon><Picture /></el-icon>
                             </div>
-                          </div>
+                          </template>
+                          <template #error>
+                            <div class="image-error">
+                              <el-icon><Picture /></el-icon>
+                            </div>
+                          </template>
+                        </el-image>
 
-                          <!-- 图片数量标签 -->
-                          <div class="cover-badge">
-                            <span class="badge-number">{{ item.count }}</span>
-                            <el-icon><Picture /></el-icon>
-                          </div>
-
-                          <!-- 评分 -->
-                          <div class="cover-rating">
-                            <StarRating :star="item.star" size="mini" />
+                        <!-- 悬停覆盖层 -->
+                        <div v-if="hoverItemId === item._id" class="hover-overlay">
+                          <div class="overlay-content">
+                            <div class="overlay-title">{{ truncateText(item.title, 25) }}</div>
+                            <div class="overlay-meta">
+                              <span class="overlay-character">{{ item.character }}</span>
+                              <span class="overlay-count">{{ item.count }}P</span>
+                            </div>
                           </div>
                         </div>
 
-                        <!-- 简略信息 -->
-                        <div class="related-info">
-                          <div class="related-title">{{ truncateText(item.title, 20) }}</div>
-                          <div class="related-meta">
-                            <span>{{ formatFileSize(item.size) }}</span>
-                          </div>
+                        <!-- 图片数量标签 -->
+                        <div class="count-badge">
+                          <span class="count-number">{{ item.count }}</span>
+                          <el-icon><Picture /></el-icon>
+                        </div>
+
+                        <!-- 评分 -->
+                        <div class="rating-overlay">
+                          <StarRating :star="item.star" size="mini" />
+                        </div>
+
+                        <!-- 角色标签 -->
+                        <div class="character-badge">
+                          <span class="character-text">{{ item.character }}</span>
+                        </div>
+                      </div>
+
+                      <!-- 压缩的信息区域 -->
+                      <div class="compact-info">
+                        <div class="compact-title" :title="item.title">
+                          {{ truncateText(item.title, 20) }}
+                        </div>
+                        <div class="compact-meta">
+                          <span class="meta-size">{{ formatFileSize(item.size) }}</span>
+                          <span class="meta-date">{{ formatRelativeDate(item.updated_at) }}</span>
                         </div>
                       </div>
                     </el-card>
@@ -329,6 +342,25 @@
       </el-card>
     </div>
 
+    <!-- 回到顶部按钮 -->
+    <transition name="fade">
+      <div
+        v-if="showBackToTop"
+        class="back-to-top"
+        @click="scrollToTop"
+        @mouseenter="hoverBackToTop = true"
+        @mouseleave="hoverBackToTop = false"
+      >
+        <el-tooltip :content="hoverBackToTop ? '回到顶部' : ''" placement="left" :show-after="500">
+          <el-button type="primary" :circle="true" size="large" class="back-to-top-btn">
+            <el-icon :size="20">
+              <Top />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+    </transition>
+
     <!-- 添加标签对话框 -->
     <el-dialog v-model="tagDialogVisible" title="添加标签" width="400px">
       <el-form :model="tagForm">
@@ -356,8 +388,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, onActivated, onDeactivated } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft,
@@ -366,8 +398,7 @@ import {
   Plus,
   Star,
   Picture,
-  Folder,
-  Clock,
+  Top,
 } from '@element-plus/icons-vue'
 import { useThemeStore } from '@/stores/theme'
 
@@ -399,6 +430,21 @@ const cosergirlItems = ref([])
 // 图片尺寸缓存
 const xwangImageSizes = ref({})
 const cosergirlImageSizes = ref({})
+
+// 悬停状态
+const hoverItemId = ref(null)
+
+// 回到顶部相关状态
+const showBackToTop = ref(false)
+const hoverBackToTop = ref(false)
+
+// 滚动位置记忆
+const detailContainer = ref(null)
+const scrollPosition = ref(0)
+const SESSION_STORAGE_KEY = 'character_detail_scroll_position'
+
+// 组件挂载状态
+const isMounted = ref(false)
 
 // 计算属性
 const isDarkTheme = computed(() => themeStore.theme === 'dark')
@@ -441,9 +487,37 @@ const ratingDistribution = computed(() => {
 })
 
 // 生命周期
-onMounted(async () => {
-  await loadCharacter()
-  await loadRelatedData()
+onMounted(() => {
+  isMounted.value = true
+  loadCharacter().then(() => {
+    loadRelatedData()
+  })
+
+  // 恢复滚动位置
+  restoreScrollPosition()
+
+  // 添加滚动监听
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  isMounted.value = false
+  window.removeEventListener('scroll', handleScroll)
+})
+
+onActivated(() => {
+  isMounted.value = true
+  window.addEventListener('scroll', handleScroll)
+})
+
+onDeactivated(() => {
+  isMounted.value = false
+  window.removeEventListener('scroll', handleScroll)
+})
+
+// 路由离开前保存滚动位置
+onBeforeRouteLeave(() => {
+  saveScrollPosition()
 })
 
 // 方法
@@ -481,6 +555,56 @@ const loadRelatedData = async () => {
   }
 }
 
+// 滚动处理
+const handleScroll = () => {
+  if (!isMounted.value) return
+
+  const scrollTop =
+    window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop
+  showBackToTop.value = scrollTop > 300
+
+  // 更新当前滚动位置
+  scrollPosition.value = scrollTop
+}
+
+// 保存滚动位置
+const saveScrollPosition = () => {
+  if (!isMounted.value) return
+
+  const key = `${SESSION_STORAGE_KEY}_${route.params.id}`
+  sessionStorage.setItem(key, scrollPosition.value.toString())
+}
+
+// 恢复滚动位置
+const restoreScrollPosition = () => {
+  if (!isMounted.value) return
+
+  const key = `${SESSION_STORAGE_KEY}_${route.params.id}`
+  const savedPosition = sessionStorage.getItem(key)
+
+  if (savedPosition) {
+    // 使用nextTick确保DOM已渲染
+    nextTick(() => {
+      window.scrollTo({
+        top: parseInt(savedPosition),
+        behavior: 'auto'
+      })
+      scrollPosition.value = parseInt(savedPosition)
+    })
+  }
+}
+
+// 滚动到顶部
+const scrollToTop = () => {
+  if (!isMounted.value) return
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  })
+  scrollPosition.value = 0
+}
+
 const updateStar = async (star) => {
   try {
     await characterApi.updateStar(character._id, star)
@@ -492,6 +616,8 @@ const updateStar = async (star) => {
 }
 
 const editCharacter = () => {
+  // 保存滚动位置后再跳转
+  saveScrollPosition()
   router.push({ name: 'CharacterEdit', params: { id: character._id } })
 }
 
@@ -514,6 +640,8 @@ const deleteCharacter = async () => {
 }
 
 const goBack = () => {
+  // 保存滚动位置后再返回
+  saveScrollPosition()
   router.back()
 }
 
@@ -523,8 +651,12 @@ const getXwangCover = (item) => {
 }
 
 const getCosergirlCover = (item) => {
-  if (!item.images || item.images.length === 0) return ''
-  return cosergirlApi.buildImageUrl(item, item.images[0][0])
+  // 使用与 CosergirlList.vue 相同的方式获取封面
+  return cosergirlApi.getCoverImage(item)
+}
+
+const getCosergirlPreviewList = (item) => {
+  return cosergirlApi.getPreviewList(item)
 }
 
 // 获取图片适应方式
@@ -550,10 +682,14 @@ const handleImageLoad = (item, type, event) => {
 }
 
 const viewXwang = (id) => {
+  // 保存滚动位置后再跳转
+  saveScrollPosition()
   router.push({ name: 'XwangDetail', params: { id } })
 }
 
 const viewCosergirl = (id) => {
+  // 保存滚动位置后再跳转
+  saveScrollPosition()
   router.push({ name: 'CosergirlDetail', params: { id } })
 }
 
@@ -636,6 +772,34 @@ const truncateText = (text, maxLength) => {
   if (text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
 }
+
+// 格式化相对日期
+const formatRelativeDate = (dateStr) => {
+  if (!dateStr) return ''
+
+  try {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffInMs = now.getTime() - date.getTime()
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+    if (diffInDays === 0) {
+      return '今天'
+    } else if (diffInDays === 1) {
+      return '昨天'
+    } else if (diffInDays < 7) {
+      return `${diffInDays}天前`
+    } else if (diffInDays < 30) {
+      return `${Math.floor(diffInDays / 7)}周前`
+    } else if (diffInDays < 365) {
+      return `${Math.floor(diffInDays / 30)}个月前`
+    } else {
+      return `${Math.floor(diffInDays / 365)}年前`
+    }
+  } catch (error) {
+    return dateStr
+  }
+}
 </script>
 
 <style scoped>
@@ -644,6 +808,7 @@ const truncateText = (text, maxLength) => {
   background-color: var(--bg-color-secondary);
   min-height: 100vh;
   transition: background-color 0.3s ease;
+  position: relative;
 }
 
 .detail-container {
@@ -837,27 +1002,27 @@ const truncateText = (text, maxLength) => {
   background-color: var(--primary-color);
 }
 
-.related-grid {
+.related-grid,
+.cosergirl-grid-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 15px;
   margin-top: 20px;
 }
 
-.related-item {
+.related-item,
+.grid-item {
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s;
 }
 
-.related-item:hover {
+.related-item:hover,
+.grid-item:hover {
   transform: translateY(-4px);
 }
 
-.related-item:hover .el-card {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.related-item .el-card {
+.related-item .el-card,
+.grid-item .el-card {
   border-color: var(--border-color);
   background-color: var(--bg-color);
   transition: all 0.3s ease;
@@ -865,14 +1030,189 @@ const truncateText = (text, maxLength) => {
   overflow: hidden;
 }
 
-.related-item .el-card.dark-card {
+.related-item .el-card.dark-card,
+.grid-item .el-card.dark-card {
   background-color: var(--bg-color-secondary);
 }
 
-.related-item .el-card:hover {
+.related-item .el-card:hover,
+.grid-item .el-card:hover {
   border-color: var(--primary-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
+/* Cosergirl 网格视图样式 */
+.item-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  border-color: var(--border-color);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.item-card.dark-card {
+  background-color: var(--bg-color-secondary);
+}
+
+.cover-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background-color: var(--bg-color-secondary);
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease;
+}
+
+.grid-item:hover .cover-image {
+  transform: scale(1.05);
+}
+
+.image-placeholder,
+.image-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color-secondary);
+  color: var(--text-tertiary-color);
+  font-size: 32px;
+}
+
+.hover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.cover-container:hover .hover-overlay {
+  opacity: 1;
+}
+
+.overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px;
+  text-align: center;
+}
+
+.overlay-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 5px;
+}
+
+.overlay-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.overlay-character {
+  background-color: rgba(64, 158, 255, 0.8);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.overlay-count {
+  background-color: rgba(103, 194, 58, 0.8);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.count-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  z-index: 5;
+}
+
+.count-number {
+  font-weight: bold;
+}
+
+.rating-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 5;
+}
+
+.character-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background-color: rgba(64, 158, 255, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+/* 压缩信息区域 */
+.compact-info {
+  padding: 8px;
+  background-color: var(--bg-color);
+  transition: background-color 0.3s ease;
+}
+
+.compact-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.compact-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary-color);
+}
+
+.meta-size,
+.meta-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 原有的相关项目样式 */
 .related-content {
   display: flex;
   flex-direction: column;
@@ -926,41 +1266,6 @@ const truncateText = (text, maxLength) => {
 
 .related-cover:hover .cover-hover-overlay {
   opacity: 1;
-}
-
-.overlay-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 10px;
-  text-align: center;
-}
-
-.overlay-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: white;
-  margin-bottom: 5px;
-}
-
-.overlay-meta {
-  display: flex;
-  gap: 10px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.overlay-character {
-  background-color: rgba(64, 158, 255, 0.8);
-  padding: 2px 6px;
-  border-radius: 2px;
-}
-
-.overlay-count {
-  background-color: rgba(103, 194, 58, 0.8);
-  padding: 2px 6px;
-  border-radius: 2px;
 }
 
 /* 图片数量标签 */
@@ -1109,6 +1414,44 @@ const truncateText = (text, maxLength) => {
   transition: color 0.3s ease;
 }
 
+/* 回到顶部按钮样式 */
+.back-to-top {
+  position: fixed;
+  right: 40px;
+  bottom: 40px;
+  z-index: 1000;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.back-to-top-btn {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.back-to-top-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+}
+
+.back-to-top-btn:active {
+  transform: translateY(0);
+}
+
+/* 动画效果 */
+.fade-enter-active,
+.fade-leave-active {
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
 /* 对话框样式覆盖 */
 :deep(.el-dialog) {
   background-color: var(--bg-color);
@@ -1154,7 +1497,8 @@ const truncateText = (text, maxLength) => {
     align-items: flex-start;
   }
 
-  .related-grid {
+  .related-grid,
+  .cosergirl-grid-view {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
@@ -1168,12 +1512,25 @@ const truncateText = (text, maxLength) => {
   .character-name {
     font-size: 24px;
   }
+
+  /* 移动端调整回到顶部按钮位置 */
+  .back-to-top {
+    right: 20px;
+    bottom: 20px;
+  }
 }
 
 @media (max-width: 480px) {
-  .related-grid {
+  .related-grid,
+  .cosergirl-grid-view {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
+  }
+
+  /* 超小屏幕调整回到顶部按钮 */
+  .back-to-top {
+    right: 10px;
+    bottom: 10px;
   }
 }
 
@@ -1184,6 +1541,17 @@ const truncateText = (text, maxLength) => {
 
 :deep(.el-loading-spinner .path) {
   stroke: var(--primary-color);
+}
+
+/* 悬停提示 */
+:deep(.el-tooltip__popper) {
+  background-color: var(--bg-color) !important;
+  color: var(--text-primary-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+:deep(.el-tooltip__popper .popper__arrow) {
+  border-color: var(--border-color) !important;
 }
 </style>
 
