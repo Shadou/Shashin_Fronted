@@ -1,0 +1,27 @@
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import 'element-plus/dist/index.css'
+import '@/styles/index.scss'
+import 'element-plus/theme-chalk/dark/css-vars.css' // 添加这行
+import VirtualScrollList from 'vue3-virtual-scroll-list'
+
+import App from './App.vue'
+import router from './router'
+
+const app = createApp(App)
+
+app.use(createPinia())
+app.use(router)
+app.use(ElementPlus)
+
+// 注册虚拟滚动组件
+app.component('VirtualScrollList', VirtualScrollList)
+
+// 注册所有图标
+for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, component)
+}
+
+app.mount('#app')
