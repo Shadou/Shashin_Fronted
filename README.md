@@ -19,6 +19,20 @@ This template should help get you started developing with Vue 3 in Vite.
 
 See [Vite Configuration Reference](https://vite.dev/config/).
 
+
+## Git
+```sh
+git init
+git add .
+
+git commit -m "submit"
+
+git remote add origin git@github.com:Shadou/Shashin_Fronted.git
+git push -u origin master
+
+git clone https://github.com/Shadou/Shashin_Fronted.git
+```
+
 ## Project Setup
 
 ```sh

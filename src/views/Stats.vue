@@ -94,6 +94,93 @@
       <div ref="trendChartRef" class="chart-container"></div>
     </el-card>
 
+    <!-- 缓存管理 -->
+    <el-card class="cache-management">
+      <template #header>
+        <span>缓存管理</span>
+      </template>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-card>
+            <template #header>
+              <span>缓存统计</span>
+            </template>
+            <div v-loading="cacheLoading">
+              <el-descriptions :column="1" border>
+                <el-descriptions-item label="缓存目录">
+                  {{ cacheStats.cacheDir || '未获取' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="文件数量">
+                  {{ cacheStats.totalFiles || 0 }}
+                </el-descriptions-item>
+                <el-descriptions-item label="总大小">
+                  {{ cacheStats.totalSize || '0 MB' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="正在处理任务">
+                  {{ cacheStats.processingCount || 0 }}
+                </el-descriptions-item>
+              </el-descriptions>
+              <div style="margin-top: 15px; text-align: center;">
+                <el-button
+                  type="primary"
+                  @click="refreshCacheStats"
+                  :loading="cacheLoading"
+                >
+                  刷新统计
+                </el-button>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+
+        <el-col :span="12">
+          <el-card>
+            <template #header>
+              <span>清理缓存</span>
+            </template>
+            <div>
+              <el-form :model="cleanupForm" label-width="100px">
+                <el-form-item label="清理天数">
+                  <el-input-number
+                    v-model="cleanupForm.days"
+                    :min="1"
+                    :max="365"
+                    placeholder="请输入清理天数"
+                    style="width: 200px"
+                  />
+                  <div class="form-tip">清理指定天数之前的缓存文件</div>
+                </el-form-item>
+
+                <el-form-item>
+                  <el-button
+                    type="danger"
+                    @click="confirmCleanup"
+                    :loading="cleanupLoading"
+                  >
+                    立即清理
+                  </el-button>
+                </el-form-item>
+              </el-form>
+
+              <div v-if="cleanupResult" class="cleanup-result">
+                <el-alert
+                  :title="`清理完成: ${cleanupResult.message}`"
+                  type="success"
+                  show-icon
+                  :closable="false"
+                >
+                  <template #default>
+                    <div>删除了 {{ cleanupResult.deletedCount || 0 }} 个文件</div>
+                  </template>
+                </el-alert>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </el-card>
+
     <!-- 详细统计表 -->
     <el-card class="detailed-stats">
       <template #header>
@@ -173,9 +260,11 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { Picture } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { characterApi } from '@/api/character'
 import { xwangApi } from '@/api/xwang'
 import { cosergirlApi } from '@/api/cosergirl'
+import { http } from '@/api/client'
 import StarRating from '@/components/common/StarRating.vue'
 import AgeRatingTag from '@/components/common/AgeRatingTag.vue'
 
@@ -184,6 +273,15 @@ const loading = ref(false)
 const starChartType = ref('pie')
 const activeTab = ref('characters')
 const trendDateRange = ref([])
+
+// 缓存管理相关状态
+const cacheLoading = ref(false)
+const cleanupLoading = ref(false)
+const cacheStats = ref({})
+const cleanupResult = ref(null)
+const cleanupForm = reactive({
+  days: 7
+})
 
 // 图表引用
 const starChartRef = ref(null)
@@ -292,6 +390,7 @@ let trendChart = null
 onMounted(async () => {
   await loadStats()
   initCharts()
+  loadCacheStats()
   window.addEventListener('resize', handleResize)
 })
 
@@ -299,6 +398,78 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   disposeCharts()
 })
+
+// 缓存管理方法
+const loadCacheStats = async () => {
+  cacheLoading.value = true
+  try {
+    const res = await http.get('/admin/thumbnail-stats')
+    if (res.success) {
+      cacheStats.value = res.data || {}
+    } else {
+      ElMessage.error(res.message || '获取缓存统计失败')
+    }
+  } catch (error) {
+    console.error('获取缓存统计失败:', error)
+    ElMessage.error('获取缓存统计失败')
+  } finally {
+    cacheLoading.value = false
+  }
+}
+
+const refreshCacheStats = () => {
+  loadCacheStats()
+}
+
+const confirmCleanup = () => {
+  if (!cleanupForm.days || cleanupForm.days < 1) {
+    ElMessage.warning('请输入有效的天数')
+    return
+  }
+
+  ElMessageBox.confirm(
+    `确定要清理 ${cleanupForm.days} 天之前的缓存文件吗？此操作不可撤销。`,
+    '确认清理',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    await cleanupThumbnails()
+  }).catch(() => {})
+}
+
+const cleanupThumbnails = async () => {
+  cleanupLoading.value = true
+  cleanupResult.value = null
+
+  try {
+    const res = await http.get('/admin/cleanup-thumbnails', {
+      days: cleanupForm.days
+    })
+
+    if (res.success) {
+      cleanupResult.value = {
+        message: res.message,
+        deletedCount: res.deletedCount
+      }
+      ElMessage.success(res.message)
+
+      // 清理后刷新缓存统计
+      setTimeout(() => {
+        loadCacheStats()
+      }, 1000)
+    } else {
+      ElMessage.error(res.message || '清理缓存失败')
+    }
+  } catch (error) {
+    console.error('清理缓存失败:', error)
+    ElMessage.error('清理缓存失败')
+  } finally {
+    cleanupLoading.value = false
+  }
+}
 
 // 方法
 const loadStats = async () => {
@@ -698,6 +869,7 @@ watch(starChartType, () => {
 }
 
 .trend-section,
+.cache-management,
 .detailed-stats {
   margin-bottom: 20px;
 }
@@ -708,9 +880,23 @@ watch(starChartType, () => {
   color: #606266;
 }
 
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 5px;
+}
+
+.cleanup-result {
+  margin-top: 20px;
+}
+
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .chart-row .el-col {
+    width: 100%;
+  }
+
+  .cache-management .el-col {
     width: 100%;
   }
 
